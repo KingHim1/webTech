@@ -7,9 +7,7 @@ for i in range(1, 9):
     text = open("./Test Files/Doc " +  i.__str__() + ".txt", encoding="ISO_8859_1")
     textTuple.append(text.read())
 
-stopWords = ["and", "the", "then"]
-
-summaryFile = open("./tf_summary.txt", "w")
+summaryFile = open("./tfidf_summary.txt", "w")
 
 def checkWordCountInText(text, keyWord):
     splitUpText = text.split(" ")
@@ -22,25 +20,36 @@ def checkWordCountInText(text, keyWord):
     if keyWord in dictionaryOfWords:
         print("this is the number of keyword: " + keyWord + " =" + dictionaryOfWords[keyWord].__str__())
 
-def countWords(allTexts, stopWords):
+def numOfFilesWithWord(word, listsOfWordsInTexts):
+    count = 0
+    for listOfWords in listsOfWordsInTexts:
+        if word in listOfWords:
+            count += 1
+    return count
+
+
+def countWords(allTexts):
     wordCountMatrix = np.array([])
     wordArray = []
     textSizes = []
+    idfValues = []
+    preprocessedTexts = []
+    for i in range(0, len(allTexts)):
+        preprocessedTexts.append(allTexts[i].replace("\n", "").replace("\"", "").replace("\n\n", "").split(" "))
+        textSizes.append(len(preprocessedTexts[i]))
     for textInd in range(0, len(allTexts)):
         x = np.size(wordCountMatrix, -1)
         columnVec = np.zeros(x)
         #need preprocessing here!
-
-        preprocessedText = allTexts[textInd].replace("\n", "").replace("\"", "").replace("\n\n", "").split(" ")
-        textSizes.append(len(preprocessedText))
-        for word in preprocessedText:
-            if word not in stopWords:
-                if word in wordArray:
-                    columnVec[wordArray.index(word)] += 1
-                else:
-                    wordArray.append(word)
-                    columnVec = np.append(columnVec, [1], axis=0)
+        for word in preprocessedTexts[textInd]:
+            if word in wordArray:
+                columnVec[wordArray.index(word)] += 1
+            else:
+                wordArray.append(word)
+                idfValues.append(np.log(len(allTexts)/numOfFilesWithWord(word, preprocessedTexts)))
+                columnVec = np.append(columnVec, [1], axis=0)
         columnVec /= textSizes[textInd]
+        columnVec *= idfValues
         if np.size(wordCountMatrix, 0) != 0:
             wordCountMatrix = np.pad(wordCountMatrix, ((0,0),(0,columnVec.size - np.size(wordCountMatrix,1))), 'constant')
         else:
@@ -77,8 +86,8 @@ def calcSentenceWeights(allTexts, wordArray, wordCountMatrix, textSizes):
     print(sentenceWeightMatrix)
 
 
-def summarise(allTexts, stopWords, summaryLength):
-    countedWords = countWords(textTuple, stopWords)
+def summarise(allTexts, summaryLength):
+    countedWords = countWords(textTuple)
     listOfWords = countedWords[0]
     wordCountMatr = countedWords[1]
     docSizes = countedWords[2]
@@ -96,11 +105,11 @@ def summarise(allTexts, stopWords, summaryLength):
             if len(summary) != 8 and lenOfBestSentence <= summaryLength:
                 summary.append(bestSentence)
                 lengthCheckList.append(False)
-            elif (lenOfBestSentence + len(summary[x].split(" ")) <= summaryLength) and lenOfBestSentence != 0:
+            elif (lenOfBestSentence + len(summary[x].split(" ")) <= summaryLength) and len(allTexts[x]) != 0:
                 summary[x] = summary[x] + bestSentence
-            elif (lenOfBestSentence + len(summary[x].split(" ")) > summaryLength):
+            elif (lenOfBestSentence + len(summary[x].split(" ")) > summaryLength) or len(allTexts[x])==0:
                 lengthCheckList[x] = True
-        countedWords = countWords(allTexts, stopWords)
+        countedWords = countWords(allTexts)
         listOfWords = countedWords[0]
         wordCountMatr = countedWords[1]
         docSizes = countedWords[2]
@@ -110,4 +119,4 @@ def summarise(allTexts, stopWords, summaryLength):
     for summaryText in summary:
         summaryFile.write(summaryText + "\n ---------------------------------------- \n")
 
-summarise(textTuple, ["and", "the", "was", "it's"], 150)
+summarise(textTuple, 150)

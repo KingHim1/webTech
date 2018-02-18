@@ -7,7 +7,7 @@ for i in range(1, 9):
     text = open("./Test Files/Doc " +  i.__str__() + ".txt", encoding="ISO_8859_1")
     textTuple.append(text.read())
 
-stopWords = ["and", "the", "then"]
+stopWords = ["and", "the", "then", "so", "if", "him", "a", "an", "be", "for", "from", "in", "with"]
 
 summaryFile = open("./tf_summary.txt", "w")
 
@@ -58,11 +58,13 @@ def calcSentenceWeights(allTexts, wordArray, wordCountMatrix, textSizes):
         allSentences.append(sentencesInText)
         sentenceWeights = np.zeros(len(sentencesInText))
         for sentenceInd in range(0, len(sentencesInText)):
+            sentenceStructureOffset = (-1 / 2) * ((sentenceInd) / len(sentencesInText)) + 1
             sentence = sentencesInText[sentenceInd]
             words = sentence.split(" ")
             for word in words:
                 if word in wordArray:
                     sentenceWeights[sentenceInd] += wordCountMatrix[textInd,wordArray.index(word)]
+            sentenceWeights[sentenceInd] *= sentenceStructureOffset
         if sentenceWeights.size >= np.size(sentenceWeightMatrix, -1):
             if np.size(sentenceWeightMatrix, 0)!= 0:
                 sentenceWeightMatrix = np.pad(sentenceWeightMatrix, ((0,0),(0,sentenceWeights.size - np.size(sentenceWeightMatrix, 1))), 'constant')
@@ -75,6 +77,16 @@ def calcSentenceWeights(allTexts, wordArray, wordCountMatrix, textSizes):
     return(sentenceWeightMatrix, allSentences)
     # print(allSentences)
     print(sentenceWeightMatrix)
+
+def isSentenceSimilar(sentence1, sentence2):
+    sentence1 = sentence1.split(" ")
+    sentence2 = sentence2.split(" ")
+    count = 0
+    for word in sentence2:
+        if word in sentence1:
+            count += 1
+    if count/len(sentence2) > 0.6:
+        return True
 
 
 def summarise(allTexts, stopWords, summaryLength):
@@ -97,9 +109,26 @@ def summarise(allTexts, stopWords, summaryLength):
                 summary.append(bestSentence)
                 lengthCheckList.append(False)
             elif (lenOfBestSentence + len(summary[x].split(" ")) <= summaryLength) and lenOfBestSentence != 0:
-                summary[x] = summary[x] + bestSentence
+                if not isSentenceSimilar(summary[x], bestSentence):
+                    summary[x] = summary[x] + bestSentence
             elif (lenOfBestSentence + len(summary[x].split(" ")) > summaryLength):
-                lengthCheckList[x] = True
+                # find second sentence with suitable length
+                count = 0
+                maxSentenceValue = 0
+                for sentenceIndex in range(0, len(sentences[x])):
+                    count += 1
+                    if len(sentences[x][sentenceIndex].split(" ")) + len(summary[x].split(" ")) <= summaryLength:
+                        if sentenceWeightMatrix[x][sentenceIndex] > maxSentenceValue:
+                            maxSentenceValue = sentenceWeightMatrix[x][sentenceIndex]
+                            bestSentence = sentences[x][sentenceIndex]
+                if len(bestSentence.split(" ")) + len(summary[x].split(" ")) <= summaryLength:
+                    if isSentenceSimilar(summary[x], bestSentence):
+                        summary[x] = summary[x] +  bestSentence
+                if count == len(sentences[x]):
+                    lengthCheckList[x] = True
+                if bestSentence in sentences[x]:
+                    sentences[x].remove(bestSentence)
+                    allTexts[x] = ".".join(sentences[x])
         countedWords = countWords(allTexts, stopWords)
         listOfWords = countedWords[0]
         wordCountMatr = countedWords[1]
@@ -108,6 +137,7 @@ def summarise(allTexts, stopWords, summaryLength):
         sentenceWeightMatrix = sentenceWeightsAndSentences[0]
         sentences = sentenceWeightsAndSentences[1]
     for summaryText in summary:
+        print(len(summaryText.split(" ")))
         summaryFile.write(summaryText + "\n ---------------------------------------- \n")
 
-summarise(textTuple, ["and", "the", "was", "it's"], 150)
+summarise(textTuple, ["and", "the", "then", "so", "if", "him", "a", "an", "be", "for", "from", "in", "with"], 150)
